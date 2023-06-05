@@ -1,20 +1,70 @@
 import * as fspath from "./Path";
-class WebFile {
+class WebFileInfo {
+    isFile: boolean = true;
+    isDirectory = false;
+    isSymlink = false;
+    size = 0;
+    mtime = new Date();
+    atime = new Date();
+    birthtime = new Date();
+    constructor(isFile?: boolean, isDirectory?: boolean, isSymlink?: boolean, size?: number, mtime?: Date, atime?: Date, birthtime?: Date) {
+        if (isFile !== undefined) {
+            this.isFile = isFile;
+        }
+        if (isDirectory !== undefined) {
+            this.isDirectory = isDirectory;
+        }
+        if (isSymlink !== undefined) {
+            this.isSymlink = isSymlink;
+        }
+        if (size !== undefined) {
+            this.size = size;
+        }
+        if (mtime !== undefined) {
+            this.mtime = mtime;
+        }
+        if (atime !== undefined) {
+            this.atime = atime;
+        }
+        if (birthtime !== undefined) {
+            this.birthtime = birthtime;
+        }
+    }
+}
+
+class WebFile extends WebFileInfo {
+
     path: string;
     parentPath: string;
     content: string;
-    icon: string;
-    type: string;
+    // icon: string;
+    // type: string;
     id?: number;
-    constructor(path: string, parentPath: string,
+    constructor(
+        path: string,
+        // parentPath: string,
         content: string,
-        icon: string, type: string,
+        // icon: string, type: string,
+        info: Partial<WebFileInfo>,
         id?: number) {
+        if (info.isFile) {
+            info.isDirectory = false;
+            info.isSymlink = false;
+        }
+        if (info.isDirectory) {
+            info.isFile = false;
+            info.isSymlink = false;
+        }
+        if (info.isSymlink) {
+            info.isFile = false;
+            info.isDirectory = false;
+        }
+        super(info.isFile, info.isDirectory, info.isSymlink, info.size, info.mtime, info.atime, info.birthtime);
         this.path = path;
-        this.parentPath = parentPath;
+        this.parentPath = fspath.dirname(path);
         this.content = content;
-        this.icon = icon;
-        this.type = type;
+        // this.icon = icon;
+        // this.type = type;
 
         this.id = id;
 
@@ -37,7 +87,6 @@ class WebFileSystem {
 
         request.onsuccess = () => {
             this.db = request.result;
-            console.log("Opened database");
             this._ready?.(this);
         };
 
@@ -47,26 +96,18 @@ class WebFileSystem {
                 { keyPath: "id", autoIncrement: true });
             objectStore.createIndex("parentPath", "parentPath");
             objectStore.createIndex("path", "path", { unique: true });
+            let rootDir = new WebFile('/',
+                '',
+                {
+                    isDirectory: true,
+                });
+            rootDir.parentPath = '';
             objectStore.add(
-                new WebFile('/',
-                    '',
-                    "",
-                    "dir",
-                    "dir")
+                rootDir
             );
-            console.log("Upgrading database");
         };
     }
 
-    async initFileSystem() {
-        await this.whenReady();
-    }
-    clearFileSystem() {
-        return new Promise((resolve, reject) => {
-            this.db.deleteObjectStore("files");
-            
-        });
-    }
     serializeFileSystem() {
         return new Promise((resolve, reject) => {
             const transaction = this.db.transaction("files", "readonly");
@@ -142,6 +183,7 @@ class WebFileSystem {
         });
     }
 
+
     /**
      * 写入文件内容到指定路径 不存在则创建，存在则覆盖
      * @param path 文件路径
@@ -149,11 +191,8 @@ class WebFileSystem {
      */
     async writeFile(path: string, par: {
         content: string;
-        icon: string;
-        type: string;
     }): Promise<void> {
-        let parentPath = path.split("/").slice(0, -1).join("/");
-        if (parentPath === "") parentPath = "/";
+        let parentPath = fspath.dirname(path);
         // judge if file exists
         let exists = await this.exists(parentPath);
         if (!exists) {
@@ -166,10 +205,10 @@ class WebFileSystem {
         if (!stat) {
             const request = objectStore.add(
                 new WebFile(path,
-                    parentPath,
                     par.content,
-                    par.icon,
-                    par.type,
+                    {
+                        isFile: true,
+                    }
                 )
             );
             return new Promise((resolve, reject) => {
@@ -186,10 +225,10 @@ class WebFileSystem {
             const request = objectStore.put(
                 new WebFile(
                     path,
-                    stat.parentPath,
                     par.content,
-                    par.icon || stat.icon,
-                    par.type || stat.type,
+                    {
+                        isFile: true,
+                    },
                     stat.id
                 )
             );
@@ -204,6 +243,8 @@ class WebFileSystem {
                 };
             });
         }
+
+
     }
     async appendFile(path: string, content: string): Promise<void> {
         const transaction = this.db.transaction("files", "readwrite");
@@ -264,7 +305,7 @@ class WebFileSystem {
     }
 
     async exists(path: string): Promise<boolean> {
-        try{
+        try {
             const transaction = this.db.transaction("files", "readonly");
             const objectStore = transaction.objectStore("files");
 
@@ -282,7 +323,7 @@ class WebFileSystem {
                     resolve(fileArray.length ? true : false);
                 };
             });
-        }catch(e){
+        } catch (e) {
             return false;
         }
     }
@@ -328,7 +369,7 @@ class WebFileSystem {
             request.onsuccess = () => {
                 let file: WebFile = request.result;
                 if (file) {
-                    if (file.type === "dir") {
+                    if (file.isDirectory) {
                         reject("Cannot delete a directory");
                     } else {
                         objectStore.delete(request.result.id);
@@ -358,7 +399,7 @@ class WebFileSystem {
                 const file: WebFile = request.result;
                 if (file) {
                     function updatePath(vfile: WebFile, vFileNewPath: string, vParentPath: string) {
-                        if (vfile.type === "dir") {
+                        if (vfile.isDirectory) {
                             objectStore.index("parentPath").openCursor(IDBKeyRange.only(vfile.path)).onsuccess =
                                 (event: any) => {
                                     let cursor: IDBCursorWithValue = event.target.result;
@@ -410,7 +451,7 @@ class WebFileSystem {
                 const file: WebFile = request.result;
                 if (file) {
                     function updatePath(vfile: WebFile) {
-                        if (vfile.type === "dir") {
+                        if (vfile.isDirectory) {
                             objectStore.index("parentPath").openCursor(IDBKeyRange.only(vfile.path)).onsuccess =
                                 (event: any) => {
                                     let cursor: IDBCursorWithValue = event.target.result;
@@ -442,10 +483,8 @@ class WebFileSystem {
      * 创建新的文件夹
      * @param path 文件夹路径
      */
-    async mkdir(path: string): Promise<string> {
-
-        // let parentPath = path.split("/").slice(0, -1).join("/");
-        let parentPath = fspath.join(path,'..');
+    async mkdir(path: string): Promise<void> {
+        let parentPath = path.split("/").slice(0, -1).join("/");
         if (parentPath === "") parentPath = "/";
         // judge if file exists
         let exists = await this.exists(parentPath);
@@ -457,7 +496,7 @@ class WebFileSystem {
         let res = await this.exists(path);
         if (res) {
             // console.error("Directory already exists");
-            return Promise.reject();
+            return Promise.resolve();
         }
 
         const transaction = this.db.transaction("files", "readwrite");
@@ -465,10 +504,12 @@ class WebFileSystem {
 
 
         const request = objectStore.add(
-            new WebFile(path, parentPath,
+            new WebFile(path,
                 "",
-                "dir",
-                "dir")
+                {
+                    isDirectory: true,
+                }
+            )
         );
 
         return new Promise((resolve, reject) => {
@@ -478,7 +519,7 @@ class WebFileSystem {
             };
             request.onsuccess = () => {
                 this.commitWatch(path, "");
-                resolve(path);
+                resolve();
             };
         });
     }
@@ -487,5 +528,6 @@ class WebFileSystem {
 
 export {
     WebFile,
+    WebFileInfo,
     WebFileSystem
 }
