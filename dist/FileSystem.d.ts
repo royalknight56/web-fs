@@ -1,18 +1,25 @@
-declare class WebFile {
+declare class WebFileInfo {
+    isFile: boolean;
+    isDirectory: boolean;
+    isSymlink: boolean;
+    size: number;
+    mtime: Date;
+    atime: Date;
+    birthtime: Date;
+    constructor(isFile?: boolean, isDirectory?: boolean, isSymlink?: boolean, size?: number, mtime?: Date, atime?: Date, birthtime?: Date);
+}
+declare class WebFile extends WebFileInfo {
     path: string;
     parentPath: string;
     content: string;
-    icon: string;
-    type: string;
     id?: number;
-    constructor(path: string, parentPath: string, content: string, icon: string, type: string, id?: number);
+    constructor(path: string, content: string, info: Partial<WebFileInfo>, id?: number);
 }
 declare class WebFileSystem {
     private db;
     private _ready;
     private _watchMap;
     constructor();
-    initFileSystem(): Promise<void>;
     serializeFileSystem(): Promise<unknown>;
     deserializeFileSystem(files: WebFile[]): Promise<unknown>;
     whenReady(): Promise<WebFileSystem>;
@@ -32,8 +39,6 @@ declare class WebFileSystem {
      */
     writeFile(path: string, par: {
         content: string;
-        icon: string;
-        type: string;
     }): Promise<void>;
     appendFile(path: string, content: string): Promise<void>;
     /**
@@ -61,4 +66,4 @@ declare class WebFileSystem {
      */
     mkdir(path: string): Promise<void>;
 }
-export { WebFile, WebFileSystem };
+export { WebFile, WebFileInfo, WebFileSystem };

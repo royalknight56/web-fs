@@ -1,6 +1,6 @@
 /**
- * 感谢 Deno 的开源项目 deno std
- * Thanks to the open source project deno std of Deno
+ * 感谢 Deno 的开源项目 deno std,所有权利归 deno std 所有
+ * Thanks to the open source project deno std of Deno, all rights belong to deno std
  * https://github.com/denoland/deno_std
  */
 export declare const CHAR_UPPERCASE_A = 65;
@@ -41,3 +41,14 @@ export declare function join(...paths: string[]): string;
 * @param [suffix] - suffix to remove from extracted name.
 */
 export declare function basename(path: string, suffix?: string): string;
+/**
+ * Return the directory path of a `path`.
+ * @param path - path to extract the directory from.
+ */
+export declare function dirname(path: string): string;
+/**
+* Return the extension of the `path` with leading period.
+* @param path with extension
+* @returns extension (ex. for `file.ts` returns `.ts`)
+*/
+export declare function extname(path: string): string;

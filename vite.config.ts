@@ -24,10 +24,11 @@ export default defineConfig({
     // target:
     target: ["es2019"],
     outDir: "./dist",
+  
     lib: {
       formats: ["es","umd"],
       entry: path.resolve(__dirname, 'src/index.ts'),
-      name: 'web-fs',
+      name: 'webFs',
       fileName: (format) => {
         return format === 'es' ? 'webfs.mjs' : 'webfs.umd.js'
       }
